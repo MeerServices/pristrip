@@ -65,6 +65,8 @@ footer{font-size:15px;color:var(--soft)}
 .pinrow{display:flex;flex-wrap:wrap;gap:12px}
 .pinrow label,.pinform label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:16px}
 .pinrow input,.pinform input{font-family:var(--display);font-size:32px;letter-spacing:10px;width:9ch;max-width:100%;padding:6px 12px;border:4px solid var(--ink);background:var(--panel);color:var(--ink)}
+.tokenl{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:16px}
+.tokenl input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:16px;padding:8px 10px;border:4px solid var(--ink);background:var(--panel);color:var(--ink);max-width:100%}
 .pinform{display:flex;flex-direction:column;gap:16px;background:var(--panel);border:5px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:20px;max-width:420px}
 @keyframes ring{0%{opacity:.9;transform:scale(.9)}100%{opacity:0;transform:scale(1.35)}}
 @keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-1.5deg)}75%{transform:rotate(1.5deg)}}
@@ -88,8 +90,11 @@ var MAIN=document.getElementById('main').textContent;
 var FONT='https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap';
 var RESET=':root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}';
 var standalone=!window.claude;
-var LS='pristrip-setup';
-if(standalone){try{var saved=localStorage.getItem(LS);if(saved){DATA=JSON.parse(saved);}}catch(e){}}
+var TK='pristrip-token';
+var OWNER='MeerServices',REPO='pristrip';
+try{var hm=location.hostname.match(/^([^.]+)\.github\.io$/i);var seg=location.pathname.split('/').filter(Boolean)[0];if(hm&&seg){OWNER=hm[1];REPO=seg;}}catch(e){}
+function getToken(){try{return localStorage.getItem(TK)||'';}catch(e){return '';}}
+function setToken(v){try{if(v){localStorage.setItem(TK,v);}else{localStorage.removeItem(TK);}return true;}catch(e){return false;}}
 var state={start:(DATA.start||[true,true,true]).slice(),rec:(DATA.rec||[null,null,null]).slice(),pin:DATA.pin||null};
 var LINES=['Pris je nu al...','Pris... Kiss...','Weet je wat ik het meeste Pris?'];
 var ALTS=['Poppetje: Pris je nu al…','Poppetje met rode lippen: Pris… Kiss…','Verbaasd poppetje: Weet je wat ik het meeste Pris?'];
@@ -212,7 +217,10 @@ function renderSetup(){
       '<div class="btns"><button type="button" class="sbtn" id="pin-set">Code instellen</button>'+(draft.pin?'<button type="button" class="sbtn" id="pin-clear">Code verwijderen</button>':'')+'</div></div>'+
     '<div class="bar"><button type="button" id="save">Opslaan</button><button type="button" id="back">Terug naar de strip</button></div>'+
     '<p class="msg" id="msg" role="status">'+msgText+'</p>'+
-    '<p class="dl" id="dl"'+(dlUrl?'':' hidden')+'><a id="dla" href="'+(dlUrl||'#')+'" download="index.html">Download index.html met je geluiden</a> en zet dat bestand op GitHub, dan hoort iedereen ze.</p>'+
+    (standalone?'<div class="pinbox"><h3>GitHub-sleutel</h3>'+
+      '<p class="status">'+(getToken()?'Op dit toestel is een sleutel bewaard. Opslaan zet je geluiden, vinkjes en code centraal op GitHub.':'Zonder sleutel kan niemand de centrale versie veranderen. Plak hier je GitHub-sleutel om te kunnen opslaan.')+'</p>'+
+      '<label class="tokenl" for="token">Sleutel (begint met github_pat_)<input type="password" id="token" autocomplete="off" spellcheck="false" placeholder="'+(getToken()?'bewaard':'github_pat_…')+'"></label>'+
+      '<div class="btns"><button type="button" class="sbtn" id="token-set">Sleutel bewaren</button>'+(getToken()?'<button type="button" class="sbtn" id="token-clear">Sleutel wissen</button>':'')+'</div></div>':'')+
     '</section>';
   app.querySelectorAll('.check input').forEach(function(c){c.addEventListener('change',function(){draft.start[+c.dataset.i]=c.checked;});});
   app.querySelectorAll('.file input').forEach(function(f){f.addEventListener('change',function(){
@@ -234,6 +242,10 @@ function renderSetup(){
   });
   var pc=document.getElementById('pin-clear');
   if(pc)pc.addEventListener('click',function(){draft.pin=null;msgText='Code verwijderd. Vergeet niet op te slaan.';renderSetup();});
+  var ts=document.getElementById('token-set');
+  if(ts)ts.addEventListener('click',function(){var v=document.getElementById('token').value.trim();if(!v){setMsg('Plak eerst je sleutel in het vak.');return;}msgText=setToken(v)?'Sleutel bewaard op dit toestel.':'Bewaren lukt niet in deze browser.';renderSetup();});
+  var tc=document.getElementById('token-clear');
+  if(tc)tc.addEventListener('click',function(){setToken('');msgText='Sleutel gewist van dit toestel.';renderSetup();});
   document.getElementById('save').addEventListener('click',save);
   document.getElementById('back').addEventListener('click',function(){stopRec();draft=null;msgText='';renderStrip();});
 }
@@ -262,8 +274,7 @@ function save(){
   if(recIdx>-1){setMsg('Stop eerst de opname.');return;}
   state={start:draft.start.slice(),rec:draft.rec.slice(),pin:draft.pin||null};
   if(standalone){
-    try{localStorage.setItem(LS,JSON.stringify(state));setMsg('Opgeslagen op dit apparaat.');}catch(e){setMsg('Opslaan op dit apparaat lukt niet: de geluiden zijn te groot. Maak ze korter.');}
-    try{if(dlUrl)URL.revokeObjectURL(dlUrl);dlUrl=URL.createObjectURL(new Blob([buildDoc()],{type:'text/html'}));var dl=document.getElementById('dl');document.getElementById('dla').href=dlUrl;dl.hidden=false;}catch(e){}
+    saveCentral();
     return;
   }
   setMsg('Bezig met opslaan…');
@@ -274,7 +285,41 @@ function save(){
 }
 
 try{speechSynthesis.getVoices();}catch(e){}
+/* ---------- central storage on GitHub ---------- */
+function toB64(str){var bytes=new TextEncoder().encode(str),bin='',CH=0x8000;for(var i=0;i<bytes.length;i+=CH){bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));}return btoa(bin);}
+function api(path,opts){var t=getToken();opts=opts||{};opts.headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+t,'X-GitHub-Api-Version':'2022-11-28'};return fetch('https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+path,opts);}
+function saveCentral(){
+  if(!getToken()){setMsg('Bewaar eerst je GitHub-sleutel, dan kun je centraal opslaan.');return;}
+  setMsg('Bezig met opslaan op GitHub…');
+  api('data.json?ref=main',{method:'GET',cache:'no-store'}).then(function(r){
+    if(r.status===404)return null;
+    if(r.status===401)throw {code:401};
+    if(!r.ok)throw {code:r.status};
+    return r.json().then(function(j){return j.sha;});
+  }).then(function(sha){
+    var body={message:'Pristrip instellingen bijgewerkt',content:toB64(JSON.stringify(state)),branch:'main'};
+    if(sha)body.sha=sha;
+    return api('data.json',{method:'PUT',body:JSON.stringify(body)});
+  }).then(function(r){
+    if(r.ok){setMsg('Opgeslagen! Over ongeveer een minuut hoort en ziet iedereen het.');return;}
+    throw {code:r.status};
+  }).catch(function(e){
+    var c=e&&e.code;
+    if(c===401)setMsg('De sleutel klopt niet of is verlopen. Maak een nieuwe en bewaar die bij GitHub-sleutel.');
+    else if(c===403||c===404)setMsg('De sleutel mag niet schrijven in '+REPO+'. Geef hem Contents: Read and write.');
+    else if(c===409||c===422)setMsg('Er was net een andere wijziging. Druk nog een keer op Opslaan.');
+    else setMsg('Opslaan op GitHub is niet gelukt. Controleer je internet en probeer het opnieuw.');
+  });
+}
+function loadCentral(){
+  fetch('data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+    if(!d)return;
+    state={start:(d.start||[true,true,true]).slice(),rec:(d.rec||[null,null,null]).slice(),pin:d.pin||null};
+  }).catch(function(){});
+}
+
 renderStrip();
+if(standalone&&/^https?:$/.test(location.protocol)){loadCentral();}
 })();
 </script>
 </body></html>
