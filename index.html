@@ -16,6 +16,10 @@ header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-be
 .logo .s2{margin-left:-.27em;position:relative}
 .logo .hold{position:absolute;left:0;bottom:-12px;height:6px;width:0;background:var(--ink)}
 .logo.holding .hold{width:100%;transition:width 10s linear}
+.start{min-height:75vh;display:grid;place-items:center}
+.start .logo{font-size:clamp(72px,18vw,220px);cursor:pointer;transform-origin:center;animation:startbob 2.4s ease-in-out infinite}
+.start .logo:focus-visible{outline:4px solid var(--red);outline-offset:12px}
+@keyframes startbob{0%,100%{transform:rotate(-3deg) translateY(0)}50%{transform:rotate(3deg) translateY(-14px) scale(1.04)}}
 .intro{margin:0;max-width:34ch;font-size:clamp(18px,2.2vw,22px);font-weight:700;background:var(--panel);border:4px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:12px 18px}
 .strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(16px,2.4vw,28px)}
 .panel{position:relative;margin:0;border:6px solid var(--ink);background:var(--panel);box-shadow:8px 8px 0 var(--ink);overflow:hidden;aspect-ratio:4/3;max-width:100%}
@@ -95,7 +99,7 @@ var OWNER='MeerServices',REPO='pristrip';
 try{var hm=location.hostname.match(/^([^.]+)\.github\.io$/i);var seg=location.pathname.split('/').filter(Boolean)[0];if(hm&&seg){OWNER=hm[1];REPO=seg;}}catch(e){}
 function getToken(){try{return localStorage.getItem(TK)||'';}catch(e){return '';}}
 function setToken(v){try{if(v){localStorage.setItem(TK,v);}else{localStorage.removeItem(TK);}return true;}catch(e){return false;}}
-var state={start:(DATA.start||[true,true,true]).slice(),rec:(DATA.rec||[null,null,null]).slice(),pin:DATA.pin||null};
+var state={start:(DATA.start||[true,true,true]).slice(),rec:(DATA.rec||[null,null,null]).slice(),pin:DATA.pin||null,startPin:DATA.startPin||null};
 var LINES=['Pris je nu al...','Pris... Kiss...','Weet je wat ik het meeste Pris?'];
 var ALTS=['Poppetje: Pris je nu al…','Poppetje met rode lippen: Pris… Kiss…','Verbaasd poppetje: Weet je wat ik het meeste Pris?'];
 var app=document.getElementById('app');
@@ -149,26 +153,40 @@ function renderStrip(){
     if(nx&&nx.classList.contains('locked')){setTimeout(function(){nx.classList.remove('locked');nx.classList.add('show','tapme');},idx===1?1800:1200);}
   });});
   document.getElementById('again').addEventListener('click',renderStrip);
-  var lg=document.getElementById('logo'),t=null;
-  function cancel(){clearTimeout(t);t=null;lg.classList.remove('holding');}
-  lg.addEventListener('pointerdown',function(){cancel();void lg.offsetWidth;lg.classList.add('holding');t=setTimeout(function(){cancel();openSetup();},10000);});
-  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){lg.addEventListener(ev,cancel);});
-  lg.addEventListener('contextmenu',function(e){e.preventDefault();});
+  bindLogo(document.getElementById('logo'),null);
 }
 
 /* ---------- code gate ---------- */
 var fails=0,lockUntil=0;
 function hashPin(code){try{var d=new TextEncoder().encode('pristrip:'+code);return crypto.subtle.digest('SHA-256',d).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');}).catch(function(){return null;});}catch(e){return Promise.resolve(null);}}
-function openSetup(){if(state.pin){renderPin();}else{renderSetup();}}
-function renderPin(){
+function openSetup(){if(state.pin){renderPin('setup');}else{renderSetup();}}
+function openStart(){ready.then(function(){if(state.startPin){renderPin('start');}else{renderStrip();}});}
+function bindLogo(lg,onTap){
+  var t=null,t0=0;
+  function cancel(){clearTimeout(t);t=null;lg.classList.remove('holding');}
+  lg.addEventListener('pointerdown',function(){cancel();t0=Date.now();void lg.offsetWidth;lg.classList.add('holding');t=setTimeout(function(){cancel();t0=0;openSetup();},10000);});
+  lg.addEventListener('pointerup',function(){var tap=t0&&Date.now()-t0<800;cancel();t0=0;if(tap&&onTap)onTap();});
+  ['pointercancel','pointerleave'].forEach(function(ev){lg.addEventListener(ev,function(){cancel();t0=0;});});
+  lg.addEventListener('contextmenu',function(e){e.preventDefault();});
+  if(onTap){lg.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();onTap();}});}
+}
+function renderStart(){
   stopAll();
-  app.innerHTML='<section class="setup pinpage" aria-labelledby="pin-title"><h2 id="pin-title">Code invoeren</h2>'+
-    '<form id="pin-form" class="pinform"><label for="pin-in">Toegangscode (6 cijfers)</label>'+
+  app.innerHTML='<section class="start" aria-label="Start">'+logo()+'</section>';
+  var lg=document.getElementById('logo');
+  lg.setAttribute('role','button');lg.setAttribute('tabindex','0');lg.setAttribute('aria-label','Pristrip! Tik om te starten');
+  bindLogo(lg,openStart);
+}
+function renderPin(kind){
+  var isStart=kind==='start';
+  stopAll();
+  app.innerHTML='<section class="setup pinpage" aria-labelledby="pin-title"><h2 id="pin-title">'+(isStart?'Startcode':'Code invoeren')+'</h2>'+
+    '<form id="pin-form" class="pinform"><label for="pin-in">'+(isStart?'Startcode':'Toegangscode')+' (6 cijfers)</label>'+
     '<input type="password" id="pin-in" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off">'+
-    '<div class="bar"><button type="submit">Openen</button><button type="button" id="pin-back">Terug</button></div></form>'+
+    '<div class="bar"><button type="submit">'+(isStart?'Starten':'Openen')+'</button><button type="button" id="pin-back">Terug</button></div></form>'+
     '<p class="msg" id="msg" role="status"></p></section>';
   var inp=document.getElementById('pin-in');inp.focus();
-  document.getElementById('pin-back').addEventListener('click',renderStrip);
+  document.getElementById('pin-back').addEventListener('click',renderStart);
   document.getElementById('pin-form').addEventListener('submit',function(e){
     e.preventDefault();
     var now=Date.now();
@@ -176,7 +194,7 @@ function renderPin(){
     var v=inp.value;
     if(!/^\d{6}$/.test(v)){setMsg('Vul 6 cijfers in.');return;}
     hashPin(v).then(function(h){
-      if(h&&h===state.pin){fails=0;msgText='';renderSetup();return;}
+      if(h&&h===(isStart?state.startPin:state.pin)){fails=0;msgText='';if(isStart){renderStrip();}else{renderSetup();}return;}
       fails++;inp.value='';
       if(fails>=5){fails=0;lockUntil=Date.now()+30000;setMsg('Te vaak fout. Wacht 30 seconden.');}
       else{setMsg('Verkeerde code.');}
@@ -190,7 +208,7 @@ function toData(blob,cb){var r=new FileReader();r.onload=function(){cb(r.result)
 function setMsg(s){msgText=s;var m=document.getElementById('msg');if(m)m.textContent=s;}
 function renderSetup(){
   stopAll();
-  if(!draft)draft={start:state.start.slice(),rec:state.rec.slice(),pin:state.pin};
+  if(!draft)draft={start:state.start.slice(),rec:state.rec.slice(),pin:state.pin,startPin:state.startPin};
   var rows='';
   for(var i=0;i<3;i++){
     var on=recIdx===i,has=!!draft.rec[i];
@@ -210,12 +228,17 @@ function renderSetup(){
     '<h2 id="setup-title">Instellingen</h2>'+
     '<p class="lead">Neem per plaatje een eigen geluid op. Dat speelt af na het startgeluid. Zet het vinkje uit als je alleen je eigen geluid wilt horen.</p>'+
     '<div class="rows">'+rows+'</div>'+
+    '<div class="pinbox"><h3>Startcode</h3>'+
+      '<p class="status">'+(draft.startPin?'Er is een startcode ingesteld. Na het tikken op het logo moet iedereen die invullen.':'Nog geen startcode. Tikken op het logo start de strip meteen.')+'</p>'+
+      '<div class="pinrow"><label for="sc-new">Nieuwe startcode (6 cijfers)<input type="password" id="sc-new" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label>'+
+      '<label for="sc-again">Herhaal startcode<input type="password" id="sc-again" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label></div>'+
+      '<div class="btns"><button type="button" class="sbtn" id="sc-set">Startcode instellen</button>'+(draft.startPin?'<button type="button" class="sbtn" id="sc-clear">Startcode verwijderen</button>':'')+'</div></div>'+
     '<div class="pinbox"><h3>Toegangscode</h3>'+
       '<p class="status">'+(draft.pin?'Er is een code ingesteld. De instellingen openen pas na het invoeren van de code.':'Nog geen code. Iedereen die het logo 10 seconden indrukt, komt hier.')+'</p>'+
       '<div class="pinrow"><label for="pin-new">Nieuwe code (6 cijfers)<input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label>'+
       '<label for="pin-again">Herhaal code<input type="password" id="pin-again" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label></div>'+
       '<div class="btns"><button type="button" class="sbtn" id="pin-set">Code instellen</button>'+(draft.pin?'<button type="button" class="sbtn" id="pin-clear">Code verwijderen</button>':'')+'</div></div>'+
-    '<div class="bar"><button type="button" id="save">Opslaan</button><button type="button" id="back">Terug naar de strip</button></div>'+
+    '<div class="bar"><button type="button" id="save">Opslaan</button><button type="button" id="back">Terug</button></div>'+
     '<p class="msg" id="msg" role="status">'+msgText+'</p>'+
     (standalone?'<div class="pinbox"><h3>GitHub-sleutel</h3>'+
       '<p class="status">'+(getToken()?'Op dit toestel is een sleutel bewaard. Opslaan zet je geluiden, vinkjes en code centraal op GitHub.':'Zonder sleutel kan niemand de centrale versie veranderen. Plak hier je GitHub-sleutel om te kunnen opslaan.')+'</p>'+
@@ -242,12 +265,20 @@ function renderSetup(){
   });
   var pc=document.getElementById('pin-clear');
   if(pc)pc.addEventListener('click',function(){draft.pin=null;msgText='Code verwijderd. Vergeet niet op te slaan.';renderSetup();});
+  document.getElementById('sc-set').addEventListener('click',function(){
+    var a=document.getElementById('sc-new').value,b=document.getElementById('sc-again').value;
+    if(!/^\d{6}$/.test(a)){setMsg('De startcode moet precies 6 cijfers zijn.');return;}
+    if(a!==b){setMsg('De twee startcodes zijn niet hetzelfde.');return;}
+    hashPin(a).then(function(h){if(!h){setMsg('Een code instellen lukt niet in deze browser.');return;}draft.startPin=h;msgText='Nieuwe startcode ingesteld. Vergeet niet op te slaan.';renderSetup();});
+  });
+  var scc=document.getElementById('sc-clear');
+  if(scc)scc.addEventListener('click',function(){draft.startPin=null;msgText='Startcode verwijderd. Vergeet niet op te slaan.';renderSetup();});
   var ts=document.getElementById('token-set');
   if(ts)ts.addEventListener('click',function(){var v=document.getElementById('token').value.trim();if(!v){setMsg('Plak eerst je sleutel in het vak.');return;}msgText=setToken(v)?'Sleutel bewaard op dit toestel.':'Bewaren lukt niet in deze browser.';renderSetup();});
   var tc=document.getElementById('token-clear');
   if(tc)tc.addEventListener('click',function(){setToken('');msgText='Sleutel gewist van dit toestel.';renderSetup();});
   document.getElementById('save').addEventListener('click',save);
-  document.getElementById('back').addEventListener('click',function(){stopRec();draft=null;msgText='';renderStrip();});
+  document.getElementById('back').addEventListener('click',function(){stopRec();draft=null;msgText='';renderStart();});
 }
 function startRec(i){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.MediaRecorder){setMsg('Opnemen lukt hier niet. Kies een geluidsbestand.');return;}
@@ -272,7 +303,7 @@ function buildDoc(){
 }
 function save(){
   if(recIdx>-1){setMsg('Stop eerst de opname.');return;}
-  state={start:draft.start.slice(),rec:draft.rec.slice(),pin:draft.pin||null};
+  state={start:draft.start.slice(),rec:draft.rec.slice(),pin:draft.pin||null,startPin:draft.startPin||null};
   if(standalone){
     saveCentral();
     return;
@@ -311,15 +342,16 @@ function saveCentral(){
     else setMsg('Opslaan op GitHub is niet gelukt. Controleer je internet en probeer het opnieuw.');
   });
 }
+var ready=Promise.resolve();
 function loadCentral(){
-  fetch('data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+  ready=fetch('data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
     if(!d)return;
-    state={start:(d.start||[true,true,true]).slice(),rec:(d.rec||[null,null,null]).slice(),pin:d.pin||null};
+    state={start:(d.start||[true,true,true]).slice(),rec:(d.rec||[null,null,null]).slice(),pin:d.pin||null,startPin:d.startPin||null};
   }).catch(function(){});
 }
 
-renderStrip();
 if(standalone&&/^https?:$/.test(location.protocol)){loadCentral();}
+renderStart();
 })();
 </script>
 </body></html>
