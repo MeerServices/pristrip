@@ -22,8 +22,11 @@
   var go=document.getElementById('go');go.href=target;go.textContent=label;
   document.getElementById('raw').href=u;
   document.getElementById('cp').onclick=function(){navigator.clipboard&&navigator.clipboard.writeText(u).then(function(){m.textContent='Link gekopieerd. Plak hem in de juiste browser.'})};
-  if(pc){setTimeout(function(){location.href=target},60);m.textContent=label+'… Dit tabblad mag je daarna sluiten.'}
-  else if(/Android/i.test(navigator.userAgent)){setTimeout(function(){location.href=target},60);m.textContent='Bezig met openen in '+(pkg||'de browser')+'… Gebeurt er niets? Tik op de roze knop.'}
+  var tried=false,closeSoon=function(){if(!tried)return;setTimeout(function(){window.close()},250)};
+  window.addEventListener('blur',closeSoon);document.addEventListener('visibilitychange',function(){if(document.hidden)closeSoon()});
+  go.addEventListener('click',function(){tried=true});
+  if(pc){setTimeout(function(){tried=true;location.href=target},60);m.textContent=label+'… Dit tabblad sluit vanzelf. Vraagt Chrome of hij X-RDP mag openen? Zet het vinkje aan en kies Openen, dan gaat het voortaan zonder vragen.'}
+  else if(/Android/i.test(navigator.userAgent)){setTimeout(function(){tried=true;location.href=target},60);m.textContent='Bezig met openen in '+(pkg||'de browser')+'… Gebeurt er niets? Tik op de roze knop.'}
   else{m.textContent='Kies hoe je de link wilt openen.'}
 })();
 </script></body></html>
