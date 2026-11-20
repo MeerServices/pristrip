@@ -17,7 +17,7 @@
   if(!ok){m.textContent='Ongeldige link.';['go','raw','cp'].forEach(function(i){document.getElementById(i).style.display='none'});return}
   var p=new URL(u),target,label;
   if(pc){var pb=(q.get('pb')||'chrome').replace(/[^a-z-]/g,''),pp=(q.get('pp')||'').slice(0,80);
-    target='xrdp://open?'+new URLSearchParams({u:u,p:pp,b:pb}).toString();label='Openen in '+(pp?'profiel "'+pp+'"':pb);document.getElementById('pcHelp').style.display='block'}
+    var o={u:u,p:pp,b:pb};if(q.get('f')==='1')o.f='1';target='xrdp://open?'+new URLSearchParams(o).toString();label='Openen in '+(pp?'profiel "'+pp+'"':pb);document.getElementById('pcHelp').style.display='block'}
   else{target=pkg?'intent://'+p.host+p.pathname+p.search+'#Intent;scheme=https;package='+pkg+';S.browser_fallback_url='+encodeURIComponent(u)+';end':u;label=pkg?'Openen in '+pkg:'Openen'}
   var go=document.getElementById('go');go.href=target;go.textContent=label;
   document.getElementById('raw').href=u;
